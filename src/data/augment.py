@@ -173,9 +173,34 @@ class AugmentPatch(Augment):
         asset.meta['pc_clean'] = pat_B
         asset.meta['pc_mix'] = pat_t
 
+
+@dataclass(frozen=True)
+class AugmentSubsample(Augment):
+    num_samples: int
+    
+    @classmethod
+    def parse(cls, **kwargs) -> 'AugmentSubsample':
+        cls.check_keys(kwargs)
+        return AugmentSubsample(**kwargs)
+        
+    def apply(self, asset: Asset, **kwargs):
+        pc = asset.sampled_vertices
+        assert pc is not None
+        if pc.shape[0] > self.num_samples:
+            idx = np.random.choice(pc.shape[0], self.num_samples, replace=False)
+            asset.sampled_vertices = pc[idx]
+            if asset.sampled_vertices_noisy is not None:
+                asset.sampled_vertices_noisy = asset.sampled_vertices_noisy[idx]
+        elif pc.shape[0] < self.num_samples:
+            idx = np.random.choice(pc.shape[0], self.num_samples, replace=True)
+            asset.sampled_vertices = pc[idx]
+            if asset.sampled_vertices_noisy is not None:
+                asset.sampled_vertices_noisy = asset.sampled_vertices_noisy[idx]
+
 def get_augments(*args) -> List[Augment]:
     MAP = {
         "sample": AugmentSample,
+        "subsample": AugmentSubsample,
         "normalize_pc": AugmentNormalizePC,
         "add_noise": AugmentAddNoise,
         "linear": AugmentLinear,

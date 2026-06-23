@@ -12,12 +12,7 @@ loss:
 
 optimizer:
   __target__: adam
-  lr: 0.0001
+  lr: 0.00001
 
 trainer:
   epochs: 100
-  
-scheduler:                   # 🚀 新增余弦退火配置（记得在 spec.py 里接上步进逻辑）
-  __target__: cosine
-  T_max: 100
-  eta_min: 0.000001
