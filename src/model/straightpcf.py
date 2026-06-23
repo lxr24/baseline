@@ -43,6 +43,11 @@ class StraightPCFArch(ModelSpec):
                 del vm_cfg['tot_its']
             if 'distance_estimation' in vm_cfg:
                 del vm_cfg['distance_estimation']
+            
+            # Use CVM's feature embedding dim if provided, otherwise default to 256 for pretrained CVM weights
+            if cfg.get('cvm_ckpt', None) is not None:
+                vm_cfg['feat_embedding_dim'] = cfg.get('cvm_feat_embedding_dim', 256)
+                
             vm = VelocityModule(model_config=vm_cfg, transform_config=transform_config)
             self.velocity_nets.append(vm)
             
