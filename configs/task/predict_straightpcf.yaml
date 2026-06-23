@@ -1,0 +1,15 @@
+mode: predict
+
+components:
+  data: predict
+  transform: vm
+  system: vm
+  model: straightpcf
+
+writer:
+  __target__: vm
+  save_dir: results/dataset_test_noisy
+  save_name: denoised
+  output_format: npy
+
+# load_ckpt: experiments/straightpcf_your_best.pkl
