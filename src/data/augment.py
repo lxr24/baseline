@@ -187,12 +187,12 @@ class AugmentSubsample(Augment):
         pc = asset.sampled_vertices
         assert pc is not None
         if pc.shape[0] > self.num_samples:
-            idx = np.random.choice(pc.shape[0], self.num_samples, replace=False)
+            idx = np.random.permutation(pc.shape[0])[:self.num_samples]
             asset.sampled_vertices = pc[idx]
             if asset.sampled_vertices_noisy is not None:
                 asset.sampled_vertices_noisy = asset.sampled_vertices_noisy[idx]
         elif pc.shape[0] < self.num_samples:
-            idx = np.random.choice(pc.shape[0], self.num_samples, replace=True)
+            idx = np.random.randint(0, pc.shape[0], self.num_samples)
             asset.sampled_vertices = pc[idx]
             if asset.sampled_vertices_noisy is not None:
                 asset.sampled_vertices_noisy = asset.sampled_vertices_noisy[idx]
