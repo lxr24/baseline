@@ -44,7 +44,8 @@ class StraightPCFArch(ModelSpec):
             if 'distance_estimation' in vm_cfg:
                 del vm_cfg['distance_estimation']
             
-            # Use CVM's feature embedding dim if provided, otherwise default to 256 for pretrained CVM weights
+            # Use CVM's feature embedding dimension if provided. 
+            # Default to 256 because that is the feature embedding dimension used during the pre-training of CVM models.
             if cfg.get('cvm_ckpt', None) is not None:
                 vm_cfg['feat_embedding_dim'] = cfg.get('cvm_feat_embedding_dim', 256)
                 
@@ -81,17 +82,20 @@ class StraightPCFArch(ModelSpec):
             hidden_size=cfg['decoder_hidden_dim'],
         )
 
-    def train(self):
-        super().train()
-        # Ensure velocity_nets stay in eval mode to prevent BatchNorm stats from updating
-        if hasattr(self, 'velocity_nets'):
-            self.velocity_nets.eval()
-            
     def parameters(self):
-        # Only return parameters that require gradients
-        return self.encoder.parameters() + self.decoder.parameters()
+        """
+        Return the parameters of the model.
+        We exclude the parameters of self.velocity_nets to keep them frozen during training.
+        """
+        for p in self.encoder.parameters():
+            yield p
+        for p in self.decoder.parameters():
+            yield p
         
     def get_supervised_loss(self, pc_clean, pc_noisy, pc_seeds_t, original_time_step):
+        # Ensure velocity_nets stay in eval mode to prevent BatchNorm stats from updating
+        self.velocity_nets.eval()
+            
         B, N, d = pc_noisy.shape
         pnt_idx = get_random_indices(N, self.num_train_points)
         
