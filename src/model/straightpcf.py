@@ -43,6 +43,12 @@ class StraightPCFArch(ModelSpec):
                 del vm_cfg['tot_its']
             if 'distance_estimation' in vm_cfg:
                 del vm_cfg['distance_estimation']
+            
+            # Use CVM's feature embedding dimension if provided. 
+            # Default to 256 because that is the feature embedding dimension used during the pre-training of CVM models.
+            if cfg.get('cvm_ckpt', None) is not None:
+                vm_cfg['feat_embedding_dim'] = cfg.get('cvm_feat_embedding_dim', 256)
+                
             vm = VelocityModule(model_config=vm_cfg, transform_config=transform_config)
             self.velocity_nets.append(vm)
             
@@ -61,7 +67,7 @@ class StraightPCFArch(ModelSpec):
             velocity_nets_state_dict = {}
             for k, v in cvm_state_dict.items():
                 if k.startswith('velocity_nets.'):
-                    velocity_nets_state_dict[k] = v
+                    velocity_nets_state_dict[k[len('velocity_nets.'):]] = v
                     
             self.velocity_nets.load_parameters(velocity_nets_state_dict)
                 
@@ -75,8 +81,21 @@ class StraightPCFArch(ModelSpec):
             out_dim=1,
             hidden_size=cfg['decoder_hidden_dim'],
         )
+
+    def parameters(self):
+        """
+        Return the parameters of the model.
+        We exclude the parameters of self.velocity_nets to keep them frozen during training.
+        """
+        for p in self.encoder.parameters():
+            yield p
+        for p in self.decoder.parameters():
+            yield p
         
     def get_supervised_loss(self, pc_clean, pc_noisy, pc_seeds_t, original_time_step):
+        # Ensure velocity_nets stay in eval mode to prevent BatchNorm stats from updating
+        self.velocity_nets.eval()
+            
         B, N, d = pc_noisy.shape
         pnt_idx = get_random_indices(N, self.num_train_points)
         
@@ -98,11 +117,12 @@ class StraightPCFArch(ModelSpec):
         loss = ((pred_d - ratio) ** 2).mean()
 
         for mod in range(self.num_modules):
-            feat = self.velocity_nets[mod].encoder(pc_noisy_gather)
-            F_dim = feat.shape[2]
-            pred_dir = self.velocity_nets[mod].decoder(
-                c=feat.reshape(-1, F_dim)
-            ).reshape(B, len(pnt_idx), d) 
+            with jt.no_grad():
+                feat = self.velocity_nets[mod].encoder(pc_noisy_gather)
+                F_dim = feat.shape[2]
+                pred_dir = self.velocity_nets[mod].decoder(
+                    c=feat.reshape(-1, F_dim)
+                ).reshape(B, len(pnt_idx), d) 
             
             pc_noisy_gather = pc_noisy_gather + (1.0 / self.num_modules) * pred_d.reshape(B, 1, 1) * pred_dir
 
