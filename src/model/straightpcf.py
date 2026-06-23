@@ -50,11 +50,20 @@ class StraightPCFArch(ModelSpec):
         if cvm_ckpt is not None:
             # Load pretrained CVM weights
             print(f"Loading pretrained CVM weights from {cvm_ckpt}")
-            for i in range(self.num_modules):
-                # Mapping from CVM's velocity_nets.i to velocity_nets.i
-                # jt.load returns the full dict, we need to extract prefix properly if needed,
-                # but Jittor provides standard load. We'll rely on global model.load() or custom loading later
-                pass
+            cvm_state_dict = jt.load(cvm_ckpt)
+            
+            # The cvm_ckpt is a checkpoint of CoupledVMArch. 
+            # It contains keys like 'velocity_nets.0.encoder.conv1.weight'
+            # We want to load those into our straightPCF's self.velocity_nets
+            # StraightPCF also has self.velocity_nets.
+            
+            # Filter and construct the state dict for self.velocity_nets
+            velocity_nets_state_dict = {}
+            for k, v in cvm_state_dict.items():
+                if k.startswith('velocity_nets.'):
+                    velocity_nets_state_dict[k] = v
+                    
+            self.velocity_nets.load_parameters(velocity_nets_state_dict)
                 
         self.encoder = FeatureExtraction(k=self.frame_knn, 
                                          input_dim=3, 
