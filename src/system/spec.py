@@ -1,5 +1,5 @@
 from collections import defaultdict
-from jittor import optim
+from jittor import optim, lr_scheduler
 from typing import Dict, List, Optional
 from tqdm import tqdm
 
@@ -48,6 +48,7 @@ class DummySystem():
         
         ckpt_save_dir: str="experiments",
         ckpt_save_name: str="checkpoint",
+        scheduler_config=None,
     ):
         self.dataset_module = dataset_module
         self.model = model
@@ -63,6 +64,15 @@ class DummySystem():
             self.optimizer = get_optimizer(optimizer_config, model)
         else:
             self.optimizer = None
+
+        if scheduler_config is not None and self.optimizer is not None:
+            __target__ = scheduler_config.pop('__target__')
+            if __target__ == 'cosine':
+                self.scheduler = lr_scheduler.CosineAnnealingLR(self.optimizer, **scheduler_config)
+            else:
+                raise ValueError(f"unsupported scheduler: {__target__}")
+        else:
+            self.scheduler = None
         
         self._validation_loss = defaultdict(list)
     
@@ -153,17 +163,23 @@ class DummySystem():
             train_dataloader = self.dataset_module.train_dataloader()
             assert train_dataloader is not None, "train_dataloader is None"
             pbar = tqdm(train_dataloader, total=len(train_dataloader)//train_dataloader.batch_size) # type: ignore
-            for batch in pbar:
+            # 🚀 加入 enumerate 获取 batch_idx
+            for batch_idx, batch in enumerate(pbar):
                 self.on_train_batch_start()
                 loss = self.training_step(batch)
                 self.optimizer.zero_grad()
                 self.optimizer.backward(loss)
-                pbar.set_description(f"Epoch {epoch}, Loss: {_get_item(loss)}")
+
+                # 🚀 降低同步频率：每 20 步才执行一次 _get_item(loss) 取消强制回传
+                if batch_idx % 20 == 0:
+                    pbar.set_description(f"Epoch {epoch}, Loss: {_get_item(loss)}")
+                
                 self.on_before_optimizer_step(self.optimizer)
                 self.optimizer.step()
                 self.on_train_batch_end()
             self.on_train_epoch_end()
-            
+            if getattr(self, "scheduler", None) is not None:
+                self.scheduler.step()
             self.model.eval()
             validate_dataloader = self.dataset_module.validate_dataloader()
             if validate_dataloader is not None:

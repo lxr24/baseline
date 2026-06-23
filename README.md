@@ -28,6 +28,7 @@ pip install jittor numpy trimesh scipy omegaconf point-cloud-utils
 
 ## 训练
 ```bash
+python preprocess.py (只运行一次就可以)
 python run.py --task configs/task/train_vm.yaml
 ```
 训练权重保存在 `experiments/` 目录下。

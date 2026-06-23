@@ -1,9 +1,5 @@
 train_transform:
   augments:
-    - __target__: sample
-      num_samples: 32768
-      num_vertex_samples: 1024
-    
     - __target__: normalize_pc
     
     - __target__: add_noise
@@ -12,11 +8,11 @@ train_transform:
     
     - __target__: linear
       scale: [0.8, 1.2]
-      rotate_x_range: [-180, 180]
+      rotate_x_range: [-15, 15]
       rotate_y_range: [-180, 180]
-      rotate_z_range: [-180, 180]
+      rotate_z_range: [-15, 15]
       scale_p: 0.5
-      rotate_p: 0.5
+      rotate_p: 0.8
     
     - __target__: patch
       patch_size: 1000
@@ -25,10 +21,6 @@ train_transform:
 
 validate_transform: &validate_transform
   augments:
-    - __target__: sample
-      num_samples: 32768
-      num_vertex_samples: 1024
-    
     - __target__: normalize_pc
     
     - __target__: add_noise

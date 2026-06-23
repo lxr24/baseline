@@ -39,13 +39,16 @@ class ObjLazyAsset(LazyAsset):
 
 @dataclass
 class NpyLazyAsset(LazyAsset):
-    # load a .npy point cloud file as an asset (for predict mode)
+    # load a .npy point cloud file as an asset (for predict mode & train mode)
     def load(self) -> 'Asset':
         pc = np.load(self.path).astype(np.float64)
         asset = Asset(
             path=self.path,
             cls=self.cls,
-            sampled_vertices_noisy=pc,
+            # 🚀 赋值给 sampled_vertices，这样训练时的 AugmentNormalizePC 和 加噪 就能正常工作
+            sampled_vertices=pc,
+            # 兼容原有的预测代码逻辑
+            sampled_vertices_noisy=pc.copy(),
         )
         return asset
 

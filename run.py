@@ -102,7 +102,7 @@ if __name__ == "__main__":
     optimizer_config = task.get('optimizer', None)
     loss_config = task.get('loss', None)
     trainer_config = task.get('trainer', None)
-    
+    scheduler_config = task.get('scheduler', None)
     # load ckpt
     load_ckpt = task.get('load_ckpt', None)
     
@@ -122,6 +122,7 @@ if __name__ == "__main__":
             optimizer_config=optimizer_config,
             loss_config=loss_config,
             trainer_config=trainer_config,
+            scheduler_config=scheduler_config,
             writer=get_writer(**writer_config) if writer_config is not None else None,
             **system_config,
         )

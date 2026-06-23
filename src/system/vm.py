@@ -41,7 +41,7 @@ class VMSystem(DummySystem):
         optimizer_config=None,
         trainer_config=None,
         writer: Optional[DummyWriter]=None,
-        
+        scheduler_config=None,
         ckpt_save_dir: str="experiments",
         ckpt_save_name: str="checkpoint",
     ):
@@ -52,6 +52,7 @@ class VMSystem(DummySystem):
             optimizer_config=optimizer_config,
             trainer_config=trainer_config,
             writer=writer,
+            scheduler_config=scheduler_config,
             ckpt_save_dir=ckpt_save_dir,
             ckpt_save_name=ckpt_save_name,
         )
