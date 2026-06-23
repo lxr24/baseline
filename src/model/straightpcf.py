@@ -80,6 +80,16 @@ class StraightPCFArch(ModelSpec):
             out_dim=1,
             hidden_size=cfg['decoder_hidden_dim'],
         )
+
+    def train(self):
+        super().train()
+        # Ensure velocity_nets stay in eval mode to prevent BatchNorm stats from updating
+        if hasattr(self, 'velocity_nets'):
+            self.velocity_nets.eval()
+            
+    def parameters(self):
+        # Only return parameters that require gradients
+        return self.encoder.parameters() + self.decoder.parameters()
         
     def get_supervised_loss(self, pc_clean, pc_noisy, pc_seeds_t, original_time_step):
         B, N, d = pc_noisy.shape
@@ -103,11 +113,12 @@ class StraightPCFArch(ModelSpec):
         loss = ((pred_d - ratio) ** 2).mean()
 
         for mod in range(self.num_modules):
-            feat = self.velocity_nets[mod].encoder(pc_noisy_gather)
-            F_dim = feat.shape[2]
-            pred_dir = self.velocity_nets[mod].decoder(
-                c=feat.reshape(-1, F_dim)
-            ).reshape(B, len(pnt_idx), d) 
+            with jt.no_grad():
+                feat = self.velocity_nets[mod].encoder(pc_noisy_gather)
+                F_dim = feat.shape[2]
+                pred_dir = self.velocity_nets[mod].decoder(
+                    c=feat.reshape(-1, F_dim)
+                ).reshape(B, len(pnt_idx), d) 
             
             pc_noisy_gather = pc_noisy_gather + (1.0 / self.num_modules) * pred_d.reshape(B, 1, 1) * pred_dir
 
