@@ -7,3 +7,4 @@ dsm_sigma: 0.01
 num_modules: 2
 tot_its: 3
 distance_estimation: True
+cvm_ckpt: experiments/cvm_best_model.pkl

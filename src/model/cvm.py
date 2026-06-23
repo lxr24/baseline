@@ -121,11 +121,11 @@ class CoupledVMArch(ModelSpec):
         pc_noisy = batch['pc_noisy'].reshape(-1, patch_size, 3)
         # pc_mix = batch['pc_mix'].reshape(-1, patch_size, 3) # Jittor baseline dataset gives mixed
         pc_clean = batch['pc_clean'].reshape(-1, patch_size, 3)
-        time_step = batch['time_step'].reshape(-1) # Need to add time_step to dataloader
-        
         # if time_step not in batch, generate random uniform [0, 1]
         if 'time_step' not in batch:
             time_step = jt.rand(pc_noisy.shape[0])
+        else:
+            time_step = batch['time_step'].reshape(-1)
             
         loss = self.get_supervised_loss(
             pc_clean=pc_clean,
