@@ -11,8 +11,8 @@ from ..data.asset import Asset
 
 def get_random_indices(n, m):
     assert m < n
-    # 🚀 纯 GPU 异步生成随机序列，彻底消除与 CPU 的强同步阻塞
-    return jt.randperm(n)[:m].int32()
+    idx = np.random.permutation(n)[:m]
+    return jt.array(idx).int32()
 
 class VelocityModule(ModelSpec):
     
@@ -120,9 +120,9 @@ class VelocityModule(ModelSpec):
                     model=self,
                     pcl_noisy=pc_next,
                     patch_size=1000,
-                    seed_k=10,            # 🚦 粗筛阶段用 4，精打阶段改 10
+                    seed_k=6,
                     seed_k_alpha=1,
-                    langevin_steps=4     # 🚦 粗筛阶段用 1，精打阶段改 4
+                    langevin_steps=1
                 )
             pc_denoised = pc_next.detach().numpy()
             res.append({"pc_denoised": pc_denoised})
@@ -148,18 +148,22 @@ class VelocityModule(ModelSpec):
         return res
 
 def farthest_point_sampling(pcls, num_pnts):
-    """
-    🚀 极速版：纯 GPU 异步随机种子点采样。
-    彻底消除 .item() 导致的 CPU-GPU 强制同步阻塞！
-    """
     B, N, _ = pcls.shape
     sampled = []
     indices = []
     for b in range(B):
-        pts = pcls[b]  # (N, 3)
-        # 直接在 GPU 上异步随机采 num_pnts 个种子点
-        idx = jt.randperm(N)[:num_pnts].int32()
-        sampled.append(pts[idx][None, ...])
+        pts = pcls[b].numpy()  # Use numpy for speed
+        selected = []
+        distances = np.ones(N) * 1e10
+        farthest = 0
+        for i in range(num_pnts):
+            selected.append(farthest)
+            centroid = pts[farthest]
+            dist = np.sum((pts - centroid)**2, axis=1)
+            distances = np.minimum(distances, dist)
+            farthest = np.argmax(distances)
+        idx = jt.array(selected).int32()
+        sampled.append(pcls[b][idx][None, ...])
         indices.append(idx[None, ...])
         
     sampled = jt.concat(sampled, dim=0)
@@ -184,7 +188,7 @@ def knn_points(x, y, k):
     nn = jt.stack(nn, dim=0)
     return dist_k, idx, nn
 
-def patch_based_denoise(model: VelocityModule, pcl_noisy, patch_size=1000, seed_k=10, seed_k_alpha=1, langevin_steps=1) -> jt.Var:
+def patch_based_denoise(model: VelocityModule, pcl_noisy, patch_size=1000, seed_k=6, seed_k_alpha=1, langevin_steps=1) -> jt.Var:
     """
     pcl_noisy: (N, 3)
     """
@@ -228,26 +232,28 @@ def patch_based_denoise(model: VelocityModule, pcl_noisy, patch_size=1000, seed_
     patches_denoised = jt.concat(patches_denoised, dim=0)
     patches_denoised = patches_denoised + seed_expand
     
-    # 🚀 提速点 3：立刻切换到 Numpy 进行纯 CPU 极速加权拼合！
-    # Numpy 是即时执行的，直接绕过 Jittor 的 AST 树静态图编译，时间从 50多秒 -> 0.01 秒
+
+    # Use Numpy for fast aggregation, following the baseline logic (select best patch)
     patches_denoised_np = patches_denoised.numpy()
-    patch_weights_np = patch_weights.numpy()
+    patch_dists_np = patch_dists.numpy()
     point_idxs_np = point_idxs.numpy()
+    pcl_noisy_np = pcl_noisy.squeeze(0).numpy()
     
-    sum_p = np.zeros((N, 3), dtype=np.float32)
-    sum_w = np.zeros((N, 1), dtype=np.float32)
-    
-    # 在 Numpy 中跑几百次循环耗时趋近于 0 毫秒
+    all_dists = np.ones((num_patches, N), dtype=np.float32) * 1e10
     for i in range(num_patches):
-        global_idx = point_idxs_np[i]      # (M,)
-        w = patch_weights_np[i, :, None]   # (M, 1)
-        preds = patches_denoised_np[i]     # (M, 3)
+        all_dists[i, point_idxs_np[i]] = patch_dists_np[i]
         
-        sum_p[global_idx] += w * preds
-        sum_w[global_idx] += w
-        
-    # 按总权重求平均，防止除以 0
-    pcl_out = sum_p / np.maximum(sum_w, 1e-8)
+    best_weights_idx = np.argmin(all_dists, axis=0)
     
+    pcl_out = np.zeros((N, 3), dtype=np.float32)
+    for i in range(num_patches):
+        mask = (best_weights_idx == i) & (all_dists[i] < 1e10)
+        if not np.any(mask): continue
+        local_idx = np.zeros(N, dtype=np.int32)
+        local_idx[point_idxs_np[i]] = np.arange(patch_size)
+        pcl_out[mask] = patches_denoised_np[i, local_idx[mask]]
+        
+    uncovered = np.all(all_dists == 1e10, axis=0)
+    pcl_out[uncovered] = pcl_noisy_np[uncovered]
     # 转回 Jittor Tensor 接着跑流水线
     return jt.array(pcl_out)
