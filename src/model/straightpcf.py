@@ -61,7 +61,7 @@ class StraightPCFArch(ModelSpec):
             velocity_nets_state_dict = {}
             for k, v in cvm_state_dict.items():
                 if k.startswith('velocity_nets.'):
-                    velocity_nets_state_dict[k] = v
+                    velocity_nets_state_dict[k[len('velocity_nets.'):]] = v
                     
             self.velocity_nets.load_parameters(velocity_nets_state_dict)
                 
