@@ -1,0 +1,9 @@
+__target__: StraightPCFArch
+frame_knn: 16
+num_train_points: 128
+feat_embedding_dim: 128
+decoder_hidden_dim: 64
+dsm_sigma: 0.01
+num_modules: 2
+tot_its: 3
+distance_estimation: True

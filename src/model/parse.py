@@ -1,11 +1,13 @@
 from .spec import ModelSpec
 from .vm import VelocityModule
 from .cvm import CoupledVMArch
+from .straightpcf import StraightPCFArch
 
 def get_model(model_config, **kwargs) -> ModelSpec:
     MAP = {
         'VelocityModule': VelocityModule,
         'CoupledVMArch': CoupledVMArch,
+        'StraightPCFArch': StraightPCFArch,
     }
     __target__ = model_config['__target__']
     del model_config['__target__']
